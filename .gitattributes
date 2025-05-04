@@ -1,0 +1,2 @@
+# ingnore jupyter notebooks from languages..
+*.ipynb linguist-vendored
