@@ -194,12 +194,12 @@ mnist_test  = torchvision.datasets.MNIST(
 dataloader_train = DataLoader(
     dataset=mnist_train,
     batch_size=64,
-    shuffle=True)
+    shuffle=False)
 
 dataloader_test = DataLoader(
     dataset=mnist_test,
     batch_size=64,
-    shuffle=True)
+    shuffle=False)
 
 
 x = np.random.random(size=(10000, 28, 28))
