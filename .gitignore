@@ -175,6 +175,8 @@ cython_debug/
 
 # Ignore datasets
 MNIST
+*.csv
 
 # Ignore personal notebooks
 notes.ipynb
+

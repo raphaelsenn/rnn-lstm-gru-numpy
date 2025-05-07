@@ -41,7 +41,7 @@ class RNN:
         self.weight_ih_l1 = np.random.uniform(-1/hidden_size**0.5, 1/hidden_size**0.5, size=(hidden_size, hidden_size))
         self.weight_hh_l1 = np.random.uniform(-1/hidden_size**0.5, 1/hidden_size**0.5, size=(hidden_size, hidden_size))
 
-        self.weight_l3 = np.random.uniform(-1/hidden_size**0.5, 1/hidden_size**0.5, size=(output_size, hidden_size*seq_len))
+        self.weight_l3 = np.random.uniform(-1/(hidden_size*seq_len)**0.5, 1/(hidden_size*seq_len)**0.5, size=(output_size, hidden_size*seq_len))
 
         # initialize biases
 
@@ -72,10 +72,10 @@ class RNN:
         return np.concatenate(y_hats, axis=0)
 
     def fit(self, X_train, y_train) -> None:
-        epochs = 3
+        epochs = 9
         N = X_train.shape[0]
         batch_size = 128 
-        learning_rate = 0.1
+        learning_rate = 0.00001
         for epoch in range(epochs):
             for i in range(0, N, batch_size):
                 x, y = X_train[i:i+batch_size], y_train[i:i+batch_size]
@@ -88,15 +88,17 @@ class RNN:
                 h_t = np.zeros((2, batch_size, self.hidden_size))
                 h_t_minus_1 = h_t
                 output = []
-
+                h_t_l0 = []
+                h_t_l1 = []
                 for t in range(self.seq_len):
-                    h_t[0] = tanh(x[t] @ self.weight_ih_l0.T + h_t_minus_1[0] @ self.weight_hh_l0.T)
-                    h_t[1] = tanh(h_t[0] @ self.weight_ih_l1 + h_t_minus_1[1] @ self.weight_hh_l1.T)
+                    h_t[0] = tanh(x[t] @ self.weight_ih_l0.T + h_t_minus_1[0] @ self.weight_hh_l0.T)    # [N, hidden_size]
+                    h_t[1] = tanh(h_t[0] @ self.weight_ih_l1.T + h_t_minus_1[1] @ self.weight_hh_l1.T)    # [N, hidden_size]
                     output.append(h_t[-1].copy())
-                    h_t_minus_1 = h_t 
+                    h_t_l0.append(h_t[0].copy()) 
+                    h_t_l1.append(h_t[1].copy()) 
+                    h_t_minus_1 = h_t.copy() 
                 output = np.stack(output, axis=0)
                 output = output.transpose(1, 0, 2)  # [N, seq_len, hidden_size]
-
                 t3 = output.reshape(batch_size, -1) # [N, hidden_size * seq_len]
                 z3 = t3 @ self.weight_l3.T  # [N, 10]
                 h3 = softmax(z3)    # [N, 10]
@@ -105,13 +107,56 @@ class RNN:
                 # backpropagation
 
                 # last layer
-                dz3 = h3 - y_hot    # [N, 10]
-                dz3_dw_l3 =  dz3.T @ t3 # [output_size, hidden_size * seq_len]
+                dz3 = (h3 - y_hot) / batch_size                # [N, 10]
+                dz3_dw_l3 =  dz3.T @ t3         # [output_size, hidden_size * seq_len]
 
                 # backpropagate throw time t
+                output = output.transpose(1, 0, 2) 
+                V = dz3_dw_l3.reshape(self.seq_len, self.output_size, self.hidden_size)
+                dh_t = np.zeros_like(output)
+                # print(output.shape)
+                # backpropagate throw time t
+                dht_dw_hh_l1 = 0
+                dht_dw_ih_l1 = 0
+                dht_dw_hh_l0 = 0
+                dht_dw_ih_l0 = 0
+                for t in range(self.seq_len - 1, 1, -1):
+                    dh_next = dh_t[t+1]  if t < self.seq_len - 1 else 0
+
+                    dht_dz2_l0 = 1 - h_t_l0[t] ** 2     # [N, hidden_size]
+                    dht_dz2_l1 = 1 - h_t_l1[t] ** 2     # [N, hidden_size]
+
+
+                    dz2_dw_hh_l1 = h_t_l1[t - 1]
+                    dht_dw_hh_l1 += dz2_dw_hh_l1.T @ dht_dz2_l1
+
+                    dz2_dw_ih_l1 = h_t_l0[t]
+                    dht_dw_ih_l1 += dz2_dw_ih_l1.T @ dht_dz2_l1
+
+
+                    dz1_dw_hh_l0 = h_t_l0[t-1]
+                    dz1_dw_ih_l0 = x[t]
+
+                    dht_dw_hh_l0 += dz1_dw_hh_l0.T @ dht_dz2_l0
+                    dht_dw_ih_l0 += dz1_dw_ih_l0.T @ dht_dz2_l0
+
+                    
+                    # print(dht_l1_dw_ih.shape)
+
+                    # self.weight_hh_l1 = self.weight_hh_l1 - learning_rate * dht_dw_hh_l1
+
+                    # print(dht_l0.shape, dht_l1.shape)
 
                 # update parameters
                 self.weight_l3 = self.weight_l3 - learning_rate * dz3_dw_l3
+                
+                self.weight_hh_l1 = self.weight_hh_l1 - learning_rate * dht_dw_hh_l1
+                self.weight_ih_l1 = self.weight_ih_l1 - learning_rate * dht_dw_ih_l1
+
+
+                self.weight_hh_l0 = self.weight_hh_l0 - learning_rate * dht_dw_hh_l0
+                self.weight_ih_l0 = self.weight_ih_l0 - learning_rate * (dht_dw_ih_l0.T)
+
 
             verbose = True
             if verbose:
