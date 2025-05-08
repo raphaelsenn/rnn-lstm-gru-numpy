@@ -113,16 +113,15 @@ class RNN:
                 # backpropagation
 
                 # last layer
-                d_out = (h2 - y_hot) / batch_size       # [N, hidden_size]
-                d_out_dw =  d_out.T @ H                 # [output_size, hidden_size * seq_len]
+                d_out = (h2 - y_hot) / batch_size         # [N, hidden_size]
+                d_out_dw =  d_out.T @ H                   # [output_size, hidden_size * seq_len]
 
                 # [output_size, seq_len * hidden_size] -> [output_size, seq_len, hidden_size] 
                 W_out = self.weight_out.reshape(
                     self.output_size,
                     self.seq_len,
                     self.hidden_size)                   # [output_size, seq_len, hidden_size]
-                ht_all = ht_all.transpose(1, 0, 2)      # [N, seq_len, hidden_size]
-                W_out = W_out.transpose(1, 0, 2)        # [seq_len, output_size, hidden_size]
+                ht_all = ht_all.transpose(1, 0, 2)        # [N, seq_len, hidden_size]
                 
                 # initialize gradients
                 dht_dwhh = np.zeros_like(self.weight_hh)
@@ -133,13 +132,10 @@ class RNN:
                 dht_dbhh = 0
                 dht_next = np.zeros_like(ht_all[0])
 
-                #dz2_dht = W_out[-1]
-                #dht = d_out @ dz2_dht
-
                 # propagating gradients through time t
                 for t in range(self.seq_len - 1, -1, -1):
-                    dz2_dht = W_out[t]                  # [output_size, hidden_size]
-                    dht = d_out @ dz2_dht + dht_next    # [N, hidden_size]
+                    dz2_dht = W_out[:, t, :]            # [output_size, hidden_size]
+                    dht = d_out @ dz2_dht + dht_next    # [N, hidden_size] 10.19 in goodfellow
 
                     dht_dz1 = 1 - ht_all[t]**2          # [N, hidden_size]
                     dht_next = (dht*dht_dz1) @ self.weight_hh
